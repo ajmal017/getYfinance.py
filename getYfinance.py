@@ -1,3 +1,17 @@
+#!/usr/bin/env python
+
+########################################
+#
+# Author: David Klein
+#
+# Contact: david@soinkleined.com 
+# 
+# Version: 0.1 - 2020-04-08 - David Klein <david@soinkleined.com>
+#
+# References:
+#		https://www.mattbutton.com/2019/01/24/how-to-scrape-yahoo-finance-and-extract-fundamental-stock-market-data-using-python-lxml-and-pandas/
+#
+########################################
 from datetime import datetime
 import lxml
 from lxml import html
@@ -5,15 +19,28 @@ import requests
 import numpy as np
 import pandas as pd
 import sys
+import argparse 
 
-symbol = sys.argv[1]
-
-#Income Statement
-#url = 'https://finance.yahoo.com/quote/' + symbol + '/financials?p=' + symbol
-#Balance Sheet
-#url = 'https://finance.yahoo.com/quote/' + symbol + '/balance-sheet?p=' + symbol
-#Cash Flow
-url = 'https://finance.yahoo.com/quote/' + symbol + '/cash-flow?p=' + symbol
+########################################
+# ARGS
+########################################
+parser = argparse.ArgumentParser(description='General purpose Yahoo! Finance scraper')
+parser.add_argument('--version', action='version', version='%(prog)s 1.0')
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument('-i', '--income-statement', action='store_true')
+group.add_argument('-b', '--balance-sheet', action='store_true')
+group.add_argument('-c', '--cash-flow', action='store_true')
+args, remaining_argv = parser.parse_known_args()
+symbol = remaining_argv[0]
+########################################
+#
+########################################
+if args.income_statement:
+    url = 'https://finance.yahoo.com/quote/' + symbol + '/financials?p=' + symbol
+elif args.balance_sheet:
+    url = 'https://finance.yahoo.com/quote/' + symbol + '/balance-sheet?p=' + symbol
+elif args.cash_flow:
+    url = 'https://finance.yahoo.com/quote/' + symbol + '/cash-flow?p=' + symbol
 
 # Set up the request headers that we're going to use, to simulate
 # a request by the Chrome browser. Simulating a request from a browser
