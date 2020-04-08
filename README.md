@@ -1,1 +1,1 @@
-# yFinancePy
+# getYfinance.py
