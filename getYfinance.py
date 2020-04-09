@@ -2,45 +2,62 @@
 
 ########################################
 #
-# Author: David Klein
+# Author:
+#   David Klein
 #
-# Contact: david@soinkleined.com 
+# Contact:
+#    david@soinkleined.com 
 # 
-# Version: 0.1 - 2020-04-08 - David Klein <david@soinkleined.com>
-#
+# Version:
+#    0.2 - 2020-04-09 - David Klein <david@soinkleined.com>
+#    	* added parse options and sort by date
+#    	* added excel output
+#    	* added help descriptions
+#     0.1 - 2020-04-08 - David Klein <david@soinkleined.com>
+#    	* initial release
+# 
 # References:
-#		https://www.mattbutton.com/2019/01/24/how-to-scrape-yahoo-finance-and-extract-fundamental-stock-market-data-using-python-lxml-and-pandas/
+#    https://www.mattbutton.com/2019/01/24/how-to-scrape-yahoo-finance-and-extract-fundamental-stock-market-data-using-python-lxml-and-pandas/
 #
 ########################################
+version='0.2'
 from datetime import datetime
 import lxml
 from lxml import html
 import requests
 import numpy as np
 import pandas as pd
-import sys
 import argparse 
-
+#pd.set_option('display.max_rows', None)
+#pd.set_option('display.max_columns', None)
+#pd.set_option('display.width', None)
+#pd.set_option('display.max_colwidth', None)
 ########################################
 # ARGS
 ########################################
 parser = argparse.ArgumentParser(description='General purpose Yahoo! Finance scraper')
-parser.add_argument('--version', action='version', version='%(prog)s 1.0')
+parser.add_argument('--version', action='version', version='%(prog)s ' + version)
+parser.add_argument('-d', '--by-date', action='store_true', help='print by date')
+parser.add_argument('-x', '--excel', action='store_true', help='print to excel instead of STDOUT')
 group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument('-i', '--income-statement', action='store_true')
-group.add_argument('-b', '--balance-sheet', action='store_true')
-group.add_argument('-c', '--cash-flow', action='store_true')
+group.add_argument('-i', '--income-statement', action='store_true', help='parse income statement')
+group.add_argument('-b', '--balance-sheet', action='store_true', help='parse balance sheet')
+group.add_argument('-c', '--cash-flow', action='store_true', help='parse cash flow')
 args, remaining_argv = parser.parse_known_args()
 symbol = remaining_argv[0]
+symbol = symbol.upper()
 ########################################
 #
 ########################################
 if args.income_statement:
-    url = 'https://finance.yahoo.com/quote/' + symbol + '/financials?p=' + symbol
+    url = "https://finance.yahoo.com/quote/%s/financials?p=%s"%(symbol,symbol)
+    type = 'Income Statement'
 elif args.balance_sheet:
-    url = 'https://finance.yahoo.com/quote/' + symbol + '/balance-sheet?p=' + symbol
+    url = "https://finance.yahoo.com/quote/%s/balance-sheet?p=%s"%(symbol,symbol)
+    type = 'Balance Sheet'
 elif args.cash_flow:
-    url = 'https://finance.yahoo.com/quote/' + symbol + '/cash-flow?p=' + symbol
+    url = "https://finance.yahoo.com/quote/%s/cash-flow?p=%s"%(symbol,symbol)
+    type = 'Cash Flow'
 
 # Set up the request headers that we're going to use, to simulate
 # a request by the Chrome browser. Simulating a request from a browser
@@ -63,8 +80,8 @@ page = requests.get(url, headers)
 # to extract the data that we want
 tree = html.fromstring(page.content)
 
-# Smoke test that we fetched the page by fetching and displaying the H1 element
-print(tree.xpath("//h1/text()"))
+if not args.excel:
+    print(tree.xpath("//h1/text()"))
 
 table_rows = tree.xpath("//div[contains(@class, 'D(tbr)')]")
 
@@ -100,7 +117,29 @@ df = df.transpose() # Transpose the DataFrame, so that our header contains the a
 columns = list(df.columns)
 columns[0] = 'Date'
 df = df.set_axis(columns, axis='columns', inplace=False)
-df = df.transpose() # Transpose the DataFrame, so that our header contains the account names
 
-# Don't print column numbers
-print(df.to_string(header=False))
+if args.excel:
+    date = datetime.today().strftime('%Y-%m-%d')
+    file = symbol + '-' + type.replace(' ','_') + '-' + date + '.xlsx'
+    writer = pd.ExcelWriter(file)
+if args.by_date:
+    numeric_columns = list(df.columns)[1::] # Take all columns, except the first (which is the 'Date' column)
+    # This breaks as 'Deferred revenues' is not a unique row
+    for column_name in numeric_columns:
+        df[column_name] = df[column_name].str.replace(',', '') # Remove the thousands separator
+        df[column_name] = df[column_name].astype(np.float64) # Convert the column to
+    if args.excel:
+    	df.to_excel(writer,type)
+    	print('Writing ' + file)
+    	writer.save()
+    else:
+    	print(df)
+else:
+    df = df.transpose()
+    if args.excel:
+    	df.to_excel(writer,type)
+    	print('Writing ' + file)
+    	writer.save()
+    else:
+    	# Don't print column numbers
+    	print(df.to_string(header=False))
