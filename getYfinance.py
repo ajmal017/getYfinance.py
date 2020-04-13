@@ -39,107 +39,137 @@ parser = argparse.ArgumentParser(description='General purpose Yahoo! Finance scr
 parser.add_argument('--version', action='version', version='%(prog)s ' + version)
 parser.add_argument('-d', '--by-date', action='store_true', help='print by date')
 parser.add_argument('-x', '--excel', action='store_true', help='print to excel instead of STDOUT')
+parser.add_argument('-f', '--field', metavar='field', help='specify fields to print')
+#parser.add_argument('-f', '--field', metavar='field', type='int', help='specify fields to print')
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument('-i', '--income-statement', action='store_true', help='parse income statement')
 group.add_argument('-b', '--balance-sheet', action='store_true', help='parse balance sheet')
 group.add_argument('-c', '--cash-flow', action='store_true', help='parse cash flow')
 args, remaining_argv = parser.parse_known_args()
-symbol = remaining_argv[0]
-symbol = symbol.upper()
+symbol_arg = remaining_argv[0]
+symbol_arg = symbol_arg.upper()
+symbols = symbol_arg.split(',')
 ########################################
 #
 ########################################
-if args.income_statement:
-    url = "https://finance.yahoo.com/quote/%s/financials?p=%s"%(symbol,symbol)
-    type = 'Income Statement'
-elif args.balance_sheet:
-    url = "https://finance.yahoo.com/quote/%s/balance-sheet?p=%s"%(symbol,symbol)
-    type = 'Balance Sheet'
-elif args.cash_flow:
-    url = "https://finance.yahoo.com/quote/%s/cash-flow?p=%s"%(symbol,symbol)
-    type = 'Cash Flow'
 
-# Set up the request headers that we're going to use, to simulate
-# a request by the Chrome browser. Simulating a request from a browser
-# is generally good practice when building a scraper
-headers = {
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Cache-Control': 'max-age=0',
-    'Pragma': 'no-cache',
-    'Referrer': 'https://google.com',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36'
-}
+def get_page(url):
+    # Set up the request headers that we're going to use, to simulate
+    # a request by the Chrome browser. Simulating a request from a browser
+    # is generally good practice when building a scraper
+    headers = {
+    	'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
+    	'Accept-Encoding': 'gzip, deflate, br',
+    	'Accept-Language': 'en-US,en;q=0.9',
+    	'Cache-Control': 'max-age=0',
+    	'Pragma': 'no-cache',
+    	'Referrer': 'https://google.com',
+    	'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36'
+    }
+    return requests.get(url, headers)
 
-# Fetch the page that we're going to parse, using the request headers
-# defined above
-page = requests.get(url, headers)
+def parse_rows(table_rows):
+    parsed_rows = []
 
-# Parse the page with LXML, so that we can start doing some XPATH queries
-# to extract the data that we want
-tree = html.fromstring(page.content)
+    for table_row in table_rows:
+        parsed_row = []
+        el = table_row.xpath("./div")
 
-if not args.excel:
-    print(tree.xpath("//h1/text()"))
+        none_count = 0
 
-table_rows = tree.xpath("//div[contains(@class, 'D(tbr)')]")
+        for rs in el:
+            try:
+                (text,) = rs.xpath('.//span/text()[1]')
+                parsed_row.append(text)
+            except ValueError:
+                parsed_row.append(np.NaN)
+                none_count += 1
 
-# Ensure that some table rows are found; if none are found, then it's possible
-# that Yahoo Finance has changed their page layout, or have detected
-# that you're scraping the page.
-assert len(table_rows) > 0
+        if (none_count < 4):
+            parsed_rows.append(parsed_row)
+            
+    return pd.DataFrame(parsed_rows)
 
-parsed_rows = []
-
-for table_row in table_rows:
-    parsed_row = []
-    el = table_row.xpath("./div")
+def clean_data(df):
+    df = df.set_index(0) # Set the index to the first column: 'Period Ending'.
+    df = df.transpose() # Transpose the DataFrame, so that our header contains the account names
     
-    none_count = 0
+    # Rename the "Breakdown" column to "Date"
+    cols = list(df.columns)
+    cols[0] = 'Date'
+    df = df.set_axis(cols, axis='columns', inplace=False)
     
-    for rs in el:
-        try:
-            (text,) = rs.xpath('.//span/text()[1]')
-            parsed_row.append(text)
-        except ValueError:
-            parsed_row.append(np.NaN)
-            none_count += 1
-
-    if (none_count < 4):
-        parsed_rows.append(parsed_row)
-
-df = pd.DataFrame(parsed_rows)
-df = df.set_index(0) # Set the index to the first column: 'Period Ending'.
-df = df.transpose() # Transpose the DataFrame, so that our header contains the account names
-
-# Rename the "Breakdown" column to "Date"
-columns = list(df.columns)
-columns[0] = 'Date'
-df = df.set_axis(columns, axis='columns', inplace=False)
-
-if args.excel:
-    date = datetime.today().strftime('%Y-%m-%d')
-    file = symbol + '-' + type.replace(' ','_') + '-' + date + '.xlsx'
-    writer = pd.ExcelWriter(file)
-if args.by_date:
+    # https://stackoverflow.com/questions/44833051/how-to-add-numbers-above-a-pandas-dataframes-column-names/44833717
+    # transpose leaves non-unique column headers, so the below is required to create unique column names
+    df.columns = pd.MultiIndex.from_tuples(list(enumerate(df)))
+    
     numeric_columns = list(df.columns)[1::] # Take all columns, except the first (which is the 'Date' column)
-    # This breaks as 'Deferred revenues' is not a unique row
+
     for column_name in numeric_columns:
-        df[column_name] = df[column_name].str.replace(',', '') # Remove the thousands separator
-        df[column_name] = df[column_name].astype(np.float64) # Convert the column to
+    	df[column_name] = df[column_name].str.replace(',', '') # Remove the thousands separator
+    	df[column_name] = df[column_name].astype(np.float64) # Convert the column to
+        
+    df = df.set_axis(cols, axis='columns', inplace=False)
+    return df
+
+def scrape_table(url):
+    # Fetch the page that we're going to parse
+    page = get_page(url);
+
+    # Parse the page with LXML, so that we can start doing some XPATH queries
+    # to extract the data that we want
+    tree = html.fromstring(page.content)
+    title = tree.xpath("//h1/text()")
+    print(title)
+
+
+    # Fetch all div elements which have class 'D(tbr)'
+    table_rows = tree.xpath("//div[contains(@class, 'D(tbr)')]")
+    
+    # validate the table formatting and scraping is accurate
+    assert len(table_rows) > 0
+    
+    df = parse_rows(table_rows)
+    df = clean_data(df)
+        
+    return df
+
+
+for symbol in symbols:
+
+    if args.income_statement:
+    	url = "https://finance.yahoo.com/quote/%s/financials?p=%s"%(symbol,symbol)
+    	type = 'Income Statement'
+    elif args.balance_sheet:
+    	url = "https://finance.yahoo.com/quote/%s/balance-sheet?p=%s"%(symbol,symbol)
+    	type = 'Balance Sheet'
+    elif args.cash_flow:
+    	url = "https://finance.yahoo.com/quote/%s/cash-flow?p=%s"%(symbol,symbol)
+    	type = 'Cash Flow'
+
+    df_result = scrape_table(url)
+
     if args.excel:
-    	df.to_excel(writer,type)
-    	print('Writing ' + file)
-    	writer.save()
+    	date = datetime.today().strftime('%Y-%m-%d')
+    	file = symbol + '-' + type.replace(' ','_') + '-' + date + '.xlsx'
+    	writer = pd.ExcelWriter(file)
+    if args.by_date:
+    	if args.excel:
+        	df_result.to_excel(writer,type)
+        	print('Writing ' + file)
+        	writer.save()
+    	else:
+    		print(df_result)
     else:
-    	print(df)
-else:
-    df = df.transpose()
-    if args.excel:
-    	df.to_excel(writer,type)
-    	print('Writing ' + file)
-    	writer.save()
-    else:
-    	# Don't print column numbers
-    	print(df.to_string(header=False))
+    	df_result = df_result.transpose()
+    	if args.excel:
+        	df_result.to_excel(writer,type)
+        	print('Writing ' + file)
+        	writer.save()
+    	else:
+        	# Don't print column numbers
+    		if args.field:
+    			df_result = df_result.loc[:, [args.field]]
+    		print(df_result.to_string(header=False))
+
+exit(0)
