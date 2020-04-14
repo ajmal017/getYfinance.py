@@ -3,24 +3,27 @@
 ########################################
 #
 # Author:
-#   David Klein
+#    David Klein
 #
 # Contact:
 #    david@soinkleined.com 
 # 
 # Version:
+#    0.3 - 2020-04-14 - David Klein <david@soinkleined.com>
+#    * added record print
+#    * added record validation
 #    0.2 - 2020-04-09 - David Klein <david@soinkleined.com>
-#    	* added parse options and sort by date
-#    	* added excel output
-#    	* added help descriptions
-#     0.1 - 2020-04-08 - David Klein <david@soinkleined.com>
-#    	* initial release
+#    * added parse options and sort by date
+#    * added excel output
+#    * added help descriptions
+#    0.1 - 2020-04-08 - David Klein <david@soinkleined.com>
+#    * initial release
 # 
 # References:
 #    https://www.mattbutton.com/2019/01/24/how-to-scrape-yahoo-finance-and-extract-fundamental-stock-market-data-using-python-lxml-and-pandas/
 #
 ########################################
-version='0.2'
+version='0.3'
 from datetime import datetime
 import lxml
 from lxml import html
@@ -28,10 +31,6 @@ import requests
 import numpy as np
 import pandas as pd
 import argparse 
-#pd.set_option('display.max_rows', None)
-#pd.set_option('display.max_columns', None)
-#pd.set_option('display.width', None)
-#pd.set_option('display.max_colwidth', None)
 ########################################
 # ARGS
 ########################################
@@ -39,8 +38,7 @@ parser = argparse.ArgumentParser(description='General purpose Yahoo! Finance scr
 parser.add_argument('--version', action='version', version='%(prog)s ' + version)
 parser.add_argument('-d', '--by-date', action='store_true', help='print by date')
 parser.add_argument('-x', '--excel', action='store_true', help='print to excel instead of STDOUT')
-parser.add_argument('-f', '--field', metavar='field', help='specify fields to print')
-#parser.add_argument('-f', '--field', metavar='field', type='int', help='specify fields to print')
+parser.add_argument('-r', '--record', action='store', type=int, help='specify record N to print')
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument('-i', '--income-statement', action='store_true', help='parse income statement')
 group.add_argument('-b', '--balance-sheet', action='store_true', help='parse balance sheet')
@@ -58,7 +56,7 @@ def get_page(url):
     # a request by the Chrome browser. Simulating a request from a browser
     # is generally good practice when building a scraper
     headers = {
-    	'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
     	'Accept-Encoding': 'gzip, deflate, br',
     	'Accept-Language': 'en-US,en;q=0.9',
     	'Cache-Control': 'max-age=0',
@@ -72,22 +70,22 @@ def parse_rows(table_rows):
     parsed_rows = []
 
     for table_row in table_rows:
-        parsed_row = []
-        el = table_row.xpath("./div")
+    	parsed_row = []
+    	el = table_row.xpath("./div")
 
-        none_count = 0
+    	none_count = 0
 
-        for rs in el:
-            try:
-                (text,) = rs.xpath('.//span/text()[1]')
-                parsed_row.append(text)
-            except ValueError:
-                parsed_row.append(np.NaN)
-                none_count += 1
+    	for rs in el:
+    		try:
+    			(text,) = rs.xpath('.//span/text()[1]')
+    			parsed_row.append(text)
+    		except ValueError:
+    			parsed_row.append(np.NaN)
+    			none_count += 1
 
-        if (none_count < 4):
-            parsed_rows.append(parsed_row)
-            
+    	if (none_count < 4):
+    		parsed_rows.append(parsed_row)
+    
     return pd.DataFrame(parsed_rows)
 
 def clean_data(df):
@@ -105,10 +103,11 @@ def clean_data(df):
     
     numeric_columns = list(df.columns)[1::] # Take all columns, except the first (which is the 'Date' column)
 
-    for column_name in numeric_columns:
-    	df[column_name] = df[column_name].str.replace(',', '') # Remove the thousands separator
-    	df[column_name] = df[column_name].astype(np.float64) # Convert the column to
-        
+    if args.excel:
+    	for column_name in numeric_columns:
+    		df[column_name] = df[column_name].str.replace(',', '') # Remove the thousands separator
+    		df[column_name] = df[column_name].astype(np.float64) # Convert the column to
+    
     df = df.set_axis(cols, axis='columns', inplace=False)
     return df
 
@@ -131,7 +130,7 @@ def scrape_table(url):
     
     df = parse_rows(table_rows)
     df = clean_data(df)
-        
+    
     return df
 
 
@@ -148,28 +147,33 @@ for symbol in symbols:
     	type = 'Cash Flow'
 
     df_result = scrape_table(url)
+    
+    if args.record:
+    	assert args.record <= len(df_result)
 
     if args.excel:
     	date = datetime.today().strftime('%Y-%m-%d')
     	file = symbol + '-' + type.replace(' ','_') + '-' + date + '.xlsx'
     	writer = pd.ExcelWriter(file)
     if args.by_date:
+    	if args.record:
+    		df_result = df_result.loc[[args.record], :]
     	if args.excel:
-        	df_result.to_excel(writer,type)
-        	print('Writing ' + file)
-        	writer.save()
+    		df_result.to_excel(writer,type)
+    		print('Writing ' + file)
+    		writer.save()
     	else:
     		print(df_result)
     else:
     	df_result = df_result.transpose()
+    	if args.record:
+    		df_result = df_result.loc[:, [args.record]]
     	if args.excel:
-        	df_result.to_excel(writer,type)
-        	print('Writing ' + file)
-        	writer.save()
+    		df_result.to_excel(writer,type)
+    		print('Writing ' + file)
+    		writer.save()
     	else:
-        	# Don't print column numbers
-    		if args.field:
-    			df_result = df_result.loc[:, [args.field]]
+    		# Don't print column numbers
     		print(df_result.to_string(header=False))
 
 exit(0)
