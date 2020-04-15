@@ -9,6 +9,8 @@
 #    david@soinkleined.com 
 # 
 # Version:
+#    0.4 - 2020-04-15 - David Klein <david@soinkleined.com>
+#    * added json output
 #    0.3 - 2020-04-14 - David Klein <david@soinkleined.com>
 #    * added record print
 #    * added record validation
@@ -31,18 +33,21 @@ import requests
 import numpy as np
 import pandas as pd
 import argparse 
+import json
 ########################################
 # ARGS
 ########################################
 parser = argparse.ArgumentParser(description='General purpose Yahoo! Finance scraper')
 parser.add_argument('--version', action='version', version='%(prog)s ' + version)
 parser.add_argument('-d', '--by-date', action='store_true', help='print by date')
-parser.add_argument('-x', '--excel', action='store_true', help='print to excel instead of STDOUT')
 parser.add_argument('-r', '--record', action='store', type=int, help='specify record N to print')
-group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument('-i', '--income-statement', action='store_true', help='parse income statement')
-group.add_argument('-b', '--balance-sheet', action='store_true', help='parse balance sheet')
-group.add_argument('-c', '--cash-flow', action='store_true', help='parse cash flow')
+group_output = parser.add_mutually_exclusive_group(required=False)
+group_output.add_argument('-x', '--excel', action='store_true', help='print to excel instead of STDOUT')
+group_output.add_argument('-j', '--json', action='store_true', help='print JSON to STDOUT')
+group_type = parser.add_mutually_exclusive_group(required=True)
+group_type.add_argument('-i', '--income-statement', action='store_true', help='parse income statement')
+group_type.add_argument('-b', '--balance-sheet', action='store_true', help='parse balance sheet')
+group_type.add_argument('-c', '--cash-flow', action='store_true', help='parse cash flow')
 args, remaining_argv = parser.parse_known_args()
 symbol_arg = remaining_argv[0]
 symbol_arg = symbol_arg.upper()
@@ -103,7 +108,7 @@ def clean_data(df):
     
     numeric_columns = list(df.columns)[1::] # Take all columns, except the first (which is the 'Date' column)
 
-    if args.excel:
+    if args.excel or args.json:
     	for column_name in numeric_columns:
     		df[column_name] = df[column_name].str.replace(',', '') # Remove the thousands separator
     		df[column_name] = df[column_name].astype(np.float64) # Convert the column to
@@ -162,6 +167,10 @@ for symbol in symbols:
     		df_result.to_excel(writer,type)
     		print('Writing ' + file)
     		writer.save()
+    	elif args.json:
+    		json_object = json.loads(df_result.to_json(orient='table'))
+    		json_formatted_str = json.dumps(json_object, indent=4)
+    		print(json_formatted_str)
     	else:
     		print(df_result)
     else:
@@ -172,6 +181,10 @@ for symbol in symbols:
     		df_result.to_excel(writer,type)
     		print('Writing ' + file)
     		writer.save()
+    	elif args.json:
+    		json_object = json.loads(df_result.to_json(orient='table'))
+    		json_formatted_str = json.dumps(json_object, indent=2)
+    		print(json_formatted_str)
     	else:
     		# Don't print column numbers
     		print(df_result.to_string(header=False))
