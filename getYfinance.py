@@ -9,6 +9,9 @@
 #    david@soinkleined.com 
 # 
 # Version:
+#    0.5 - 2020-04-15 - David Klein <david@soinkleined.com>
+#    * removed redundant code
+#    * added symbol and type to json
 #    0.4 - 2020-04-15 - David Klein <david@soinkleined.com>
 #    * added json output
 #    0.3 - 2020-04-14 - David Klein <david@soinkleined.com>
@@ -25,7 +28,7 @@
 #    https://www.mattbutton.com/2019/01/24/how-to-scrape-yahoo-finance-and-extract-fundamental-stock-market-data-using-python-lxml-and-pandas/
 #
 ########################################
-version='0.3'
+version='0.5'
 from datetime import datetime
 import lxml
 from lxml import html
@@ -124,8 +127,8 @@ def scrape_table(url):
     # to extract the data that we want
     tree = html.fromstring(page.content)
     title = tree.xpath("//h1/text()")
-    print(title)
-
+    if not args.excel or args.json:
+    	print(title)
 
     # Fetch all div elements which have class 'D(tbr)'
     table_rows = tree.xpath("//div[contains(@class, 'D(tbr)')]")
@@ -163,30 +166,26 @@ for symbol in symbols:
     if args.by_date:
     	if args.record:
     		df_result = df_result.loc[[args.record], :]
-    	if args.excel:
-    		df_result.to_excel(writer,type)
-    		print('Writing ' + file)
-    		writer.save()
-    	elif args.json:
-    		json_object = json.loads(df_result.to_json(orient='table'))
-    		json_formatted_str = json.dumps(json_object, indent=4)
-    		print(json_formatted_str)
-    	else:
-    		print(df_result)
     else:
     	df_result = df_result.transpose()
     	if args.record:
     		df_result = df_result.loc[:, [args.record]]
-    	if args.excel:
-    		df_result.to_excel(writer,type)
-    		print('Writing ' + file)
-    		writer.save()
-    	elif args.json:
-    		json_object = json.loads(df_result.to_json(orient='table'))
-    		json_formatted_str = json.dumps(json_object, indent=2)
-    		print(json_formatted_str)
-    	else:
-    		# Don't print column numbers
-    		print(df_result.to_string(header=False))
+    if args.excel:
+    	df_result.to_excel(writer,type)
+    	print('Writing ' + file)
+    	writer.save()
+    elif args.json:
+    	json_object={}
+    	json_object['COMPANY'] = symbol
+    	json_object['TYPE'] = type
+    	json_object_result = json.loads(df_result.to_json(orient='table'))
+    	json_object.update(json_object_result)
+    	json_formatted_str = json.dumps(json_object, indent=2)
+    	print(json_formatted_str)
+    elif args.by_date:
+    	print(df_result)
+    else:
+    	# Don't print column numbers
+    	print(df_result.to_string(header=False))
 
 exit(0)
