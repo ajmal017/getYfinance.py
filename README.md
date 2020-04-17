@@ -1,5 +1,5 @@
-# getYfinance.py
-A general purpose Yahoo! Finance scraper.
+# Info
+Using the internet to learn python and create a general purpose Yahoo! Finance scraper.
 
     usage: getYfinance.py [-h] [--version] [-d] [-r N] [-x | -j] (-i | -b | -c)
                           symbol [symbol ...]
