@@ -47,7 +47,7 @@ import json
 formatter = lambda prog: argparse.HelpFormatter(prog,max_help_position=52)
 parser = argparse.ArgumentParser(formatter_class=formatter, description='General purpose Yahoo! Finance scraper')
 # need to fix positional args
-parser.add_argument('symbols', nargs='+', metavar='symbol', action='store', help='ticker symbol')
+parser.add_argument('symbols', nargs='+', metavar='symbol', action='store', help='ticker symbol(s)')
 parser.add_argument('--version', action='version', version='%(prog)s ' + version)
 parser.add_argument('-d', '--by-date', action='store_true', help='print by date')
 parser.add_argument('-r', '--record', metavar='N', action='store', type=int, help='specify record N to print')
