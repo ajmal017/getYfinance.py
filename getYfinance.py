@@ -9,6 +9,9 @@
 #    david@soinkleined.com 
 # 
 # Version:
+#    0.6 - 2020-04-17 - David Klein <david@soinkleined.com>
+#    * reformatted help
+#    * used correct positional arguments 
 #    0.5 - 2020-04-15 - David Klein <david@soinkleined.com>
 #    * removed redundant code
 #    * added symbol and type to json
@@ -28,7 +31,7 @@
 #    https://www.mattbutton.com/2019/01/24/how-to-scrape-yahoo-finance-and-extract-fundamental-stock-market-data-using-python-lxml-and-pandas/
 #
 ########################################
-version='0.5'
+version='0.6'
 from datetime import datetime
 import lxml
 from lxml import html
@@ -40,10 +43,14 @@ import json
 ########################################
 # ARGS
 ########################################
-parser = argparse.ArgumentParser(description='General purpose Yahoo! Finance scraper')
+# make help output neater
+formatter = lambda prog: argparse.HelpFormatter(prog,max_help_position=52)
+parser = argparse.ArgumentParser(formatter_class=formatter, description='General purpose Yahoo! Finance scraper')
+# need to fix positional args
+parser.add_argument('symbols', nargs='+', metavar='symbol', action='store', help='ticker symbol')
 parser.add_argument('--version', action='version', version='%(prog)s ' + version)
 parser.add_argument('-d', '--by-date', action='store_true', help='print by date')
-parser.add_argument('-r', '--record', action='store', type=int, help='specify record N to print')
+parser.add_argument('-r', '--record', metavar='N', action='store', type=int, help='specify record N to print')
 group_output = parser.add_mutually_exclusive_group(required=False)
 group_output.add_argument('-x', '--excel', action='store_true', help='print to excel instead of STDOUT')
 group_output.add_argument('-j', '--json', action='store_true', help='print JSON to STDOUT')
@@ -51,10 +58,8 @@ group_type = parser.add_mutually_exclusive_group(required=True)
 group_type.add_argument('-i', '--income-statement', action='store_true', help='parse income statement')
 group_type.add_argument('-b', '--balance-sheet', action='store_true', help='parse balance sheet')
 group_type.add_argument('-c', '--cash-flow', action='store_true', help='parse cash flow')
-args, remaining_argv = parser.parse_known_args()
-symbol_arg = remaining_argv[0]
-symbol_arg = symbol_arg.upper()
-symbols = symbol_arg.split(',')
+args = parser.parse_args()
+args.symbols = [x.upper() for x in args.symbols]
 ########################################
 #
 ########################################
@@ -142,7 +147,7 @@ def scrape_table(url):
     return df
 
 
-for symbol in symbols:
+for symbol in args.symbols:
 
     if args.income_statement:
     	url = "https://finance.yahoo.com/quote/%s/financials?p=%s"%(symbol,symbol)
