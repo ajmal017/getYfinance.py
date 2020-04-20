@@ -42,7 +42,7 @@
 #    https://stackoverflow.com/questions/50615824/xpath-copied-from-inspector-returns-wrong-results
 #
 ########################################
-version='0.6'
+version='0.7'
 from datetime import datetime
 import lxml
 from lxml import html
