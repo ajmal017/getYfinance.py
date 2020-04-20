@@ -9,6 +9,8 @@
 #    david@soinkleined.com 
 # 
 # Version:
+#    0.7 - 2020-04-20 - David Klein <david@soinkleined.com>
+#    * added summary option
 #    0.6 - 2020-04-17 - David Klein <david@soinkleined.com>
 #    * reformatted help
 #    * used correct positional arguments 
@@ -27,8 +29,17 @@
 #    0.1 - 2020-04-08 - David Klein <david@soinkleined.com>
 #    * initial release
 # 
+# To do:
+#    * validate ticker args 
+#    * validate http request
+#    * fix record query for summary
+# 
 # References:
 #    https://www.mattbutton.com/2019/01/24/how-to-scrape-yahoo-finance-and-extract-fundamental-stock-market-data-using-python-lxml-and-pandas/
+#    https://www.scrapehero.com/scrape-yahoo-finance-stock-market-data/
+#    https://stackoverflow.com/questions/33752819/pandas-dataframe-from-dict-not-preserving-order-using-ordereddict
+#    https://stackoverflow.com/questions/17839973/constructing-pandas-dataframe-from-values-in-variables-gives-valueerror-if-usi
+#    https://stackoverflow.com/questions/50615824/xpath-copied-from-inspector-returns-wrong-results
 #
 ########################################
 version='0.6'
@@ -40,6 +51,7 @@ import numpy as np
 import pandas as pd
 import argparse 
 import json
+from collections import OrderedDict
 ########################################
 # ARGS
 ########################################
@@ -58,11 +70,13 @@ group_type = parser.add_mutually_exclusive_group(required=True)
 group_type.add_argument('-i', '--income-statement', action='store_true', help='parse income statement')
 group_type.add_argument('-b', '--balance-sheet', action='store_true', help='parse balance sheet')
 group_type.add_argument('-c', '--cash-flow', action='store_true', help='parse cash flow')
+group_type.add_argument('-s', '--summary', action='store_true', help='parse summary')
 args = parser.parse_args()
 args.symbols = [x.upper() for x in args.symbols]
 ########################################
 #
 ########################################
+date = datetime.today().strftime('%Y-%m-%d')
 
 def get_page(url):
     # Set up the request headers that we're going to use, to simulate
@@ -104,7 +118,6 @@ def parse_rows(table_rows):
 def clean_data(df):
     df = df.set_index(0) # Set the index to the first column: 'Period Ending'.
     df = df.transpose() # Transpose the DataFrame, so that our header contains the account names
-    
     # Rename the "Breakdown" column to "Date"
     cols = list(df.columns)
     cols[0] = 'Date'
@@ -133,17 +146,35 @@ def scrape_table(url):
     tree = html.fromstring(page.content)
     title = tree.xpath("//h1/text()")
     if not args.excel or args.json:
-    	print(title)
+    	print("%s - %s"%(title,date))
 
-    # Fetch all div elements which have class 'D(tbr)'
-    table_rows = tree.xpath("//div[contains(@class, 'D(tbr)')]")
-    
-    # validate the table formatting and scraping is accurate
-    assert len(table_rows) > 0
-    
-    df = parse_rows(table_rows)
-    df = clean_data(df)
-    
+    if args.summary:
+    	# Xpath needs to be updated if format changes
+    	price = tree.xpath('//*[@id="quote-header-info"]/div[3]/div/span/text()')  
+    	change = tree.xpath('//*[@id="quote-header-info"]/div[3]/div/div/span//text()')  
+    	market_notice = tree.xpath('//*[@id="quote-header-info"]/div[3]/div/div/div/span//text()')  
+    	table_rows = tree.xpath('//div[contains(@data-test,"summary-table")]//tr')
+    	# validate the table formatting and scraping is accurate
+    	assert len(table_rows) > 0
+    	summary_data = OrderedDict()
+    	summary_data.update({'Current Price':price})
+    	summary_data.update({'Market Notice':market_notice})
+    	summary_data.update({'Change':change})
+    	for table_data in table_rows:
+    		raw_table_key = table_data.xpath('.//td[contains(@class,"C($primaryColor)")]//text()')
+    		raw_table_value = table_data.xpath('.//td[contains(@class,"Ta(end)")]//text()')
+    		table_key = ''.join(raw_table_key).strip()
+    		table_value = ''.join(raw_table_value).strip()
+    		summary_data.update({table_key:table_value})
+    	df = pd.DataFrame(summary_data, columns=summary_data.keys(), index=[0])
+    else:
+    	# Fetch all div elements which have class 'D(tbr)'
+    	table_rows = tree.xpath("//div[contains(@class, 'D(tbr)')]")
+    	# validate the table formatting and scraping is accurate
+    	assert len(table_rows) > 0
+    	df = parse_rows(table_rows)
+    	df = clean_data(df)
+
     return df
 
 
@@ -158,19 +189,24 @@ for symbol in args.symbols:
     elif args.cash_flow:
     	url = "https://finance.yahoo.com/quote/%s/cash-flow?p=%s"%(symbol,symbol)
     	type = 'Cash Flow'
+    elif args.summary:
+    	url = "https://finance.yahoo.com/quote/%s?p=%s"%(symbol,symbol)
+    	type = 'Summary'
 
     df_result = scrape_table(url)
-    
     if args.record:
     	assert args.record <= len(df_result)
 
     if args.excel:
-    	date = datetime.today().strftime('%Y-%m-%d')
     	file = symbol + '-' + type.replace(' ','_') + '-' + date + '.xlsx'
     	writer = pd.ExcelWriter(file)
-    if args.by_date:
+    if args.by_date :
     	if args.record:
     		df_result = df_result.loc[[args.record], :]
+    elif args.summary:
+    #	if args.record:
+    #		df_result = df_result.loc[:, [args.record]]
+    	df_result = df_result.transpose()
     else:
     	df_result = df_result.transpose()
     	if args.record:

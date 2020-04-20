@@ -1,13 +1,14 @@
 # Info
 Using the internet to learn python and create a general purpose Yahoo! Finance scraper.
 
-    usage: getYfinance.py [-h] [--version] [-d] [-r N] [-x | -j] (-i | -b | -c)
+    usage: getYfinance.py [-h] [--version] [-d] [-r N] [-x | -j]
+                          (-i | -b | -c | -s)
                           symbol [symbol ...]
     
     General purpose Yahoo! Finance scraper
     
     positional arguments:
-      symbol                  ticker symbol
+      symbol                  ticker symbol(s)
     
     optional arguments:
       -h, --help              show this help message and exit
@@ -19,6 +20,7 @@ Using the internet to learn python and create a general purpose Yahoo! Finance s
       -i, --income-statement  parse income statement
       -b, --balance-sheet     parse balance sheet
       -c, --cash-flow         parse cash flow
+      -s, --summary           parse summary
     
 
 ## Acknowledgments
