@@ -58,7 +58,6 @@ from collections import OrderedDict
 # make help output neater
 formatter = lambda prog: argparse.HelpFormatter(prog,max_help_position=52)
 parser = argparse.ArgumentParser(formatter_class=formatter, description='General purpose Yahoo! Finance scraper')
-# need to fix positional args
 parser.add_argument('symbols', nargs='+', metavar='symbol', action='store', help='ticker symbol(s)')
 parser.add_argument('--version', action='version', version='%(prog)s ' + version)
 parser.add_argument('-d', '--by-date', action='store_true', help='print by date')
@@ -74,9 +73,13 @@ group_type.add_argument('-s', '--summary', action='store_true', help='parse summ
 args = parser.parse_args()
 args.symbols = [x.upper() for x in args.symbols]
 ########################################
-#
+# VARS
 ########################################
 date = datetime.today().strftime('%Y-%m-%d')
+
+########################################
+# METHODS
+########################################
 
 def get_page(url):
     # Set up the request headers that we're going to use, to simulate
@@ -114,6 +117,14 @@ def parse_rows(table_rows):
     		parsed_rows.append(parsed_row)
     
     return pd.DataFrame(parsed_rows)
+
+def clean_data_summary(df):
+    df = df.transpose()
+    cols = list(df.columns)
+    df = df.set_axis(cols, axis='columns', inplace=False)
+    df.columns = pd.MultiIndex.from_tuples(list(enumerate(df)))
+    df = df.transpose()
+    return df
 
 def clean_data(df):
     df = df.set_index(0) # Set the index to the first column: 'Period Ending'.
@@ -167,6 +178,7 @@ def scrape_table(url):
     		table_value = ''.join(raw_table_value).strip()
     		summary_data.update({table_key:table_value})
     	df = pd.DataFrame(summary_data, columns=summary_data.keys(), index=[0])
+    	df = clean_data_summary(df)
     else:
     	# Fetch all div elements which have class 'D(tbr)'
     	table_rows = tree.xpath("//div[contains(@class, 'D(tbr)')]")
@@ -202,10 +214,11 @@ for symbol in args.symbols:
     	writer = pd.ExcelWriter(file)
     if args.by_date :
     	if args.record:
-    		df_result = df_result.loc[[args.record], :]
+    #		df_result = df_result.loc[[args.record], :]
+    		df_result = df_result.loc[:, [args.record]]
     elif args.summary:
-    #	if args.record:
-    #		df_result = df_result.loc[:, [args.record]]
+    	if args.record:
+    		df_result = df_result.loc[[args.record], :]
     	df_result = df_result.transpose()
     else:
     	df_result = df_result.transpose()
