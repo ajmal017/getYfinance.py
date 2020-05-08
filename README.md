@@ -1,6 +1,6 @@
 # Info
 
-    usage: getYfinance.py [-h] [--version] [-d] [-r N] [-x | -j]
+    usage: getYfinance.py [-h] [--version] [-t] [-r N] [-x | -j]
                           (-i | -b | -c | -s)
                           symbol [symbol ...]
     
@@ -12,7 +12,7 @@
     optional arguments:
       -h, --help              show this help message and exit
       --version               show program's version number and exit
-      -d, --by-date           print by date
+      -t, --transpose         transpose rows and columns
       -r N, --record N        specify record N to print
       -x, --excel             print to excel instead of STDOUT
       -j, --json              print JSON to STDOUT
@@ -24,5 +24,5 @@
 
 ## Acknowledgments
 
-* most of the original code came from https://www.mattbutton.com/2019/01/24/how-to-scrape-yahoo-finance-and-extract-fundamental-stock-market-data-using-python-lxml-and-pandas/
+* most of the original code and concepts came from https://www.mattbutton.com/2019/01/24/how-to-scrape-yahoo-finance-and-extract-fundamental-stock-market-data-using-python-lxml-and-pandas/. It was a great headstart into what i was trying to do and there have been so many other great Internet resources.
 
